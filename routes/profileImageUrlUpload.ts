@@ -4,6 +4,7 @@
  */
 
 import fs = require('fs')
+import { URL } from 'url'
 import { type Request, type Response, type NextFunction } from 'express'
 import logger from '../lib/logger'
 
@@ -12,11 +13,28 @@ import * as utils from '../lib/utils'
 const security = require('../lib/insecurity')
 const request = require('request')
 
+function isAllowedUrl (url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+    const hostname = parsed.hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') return false
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.)/.test(hostname)) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 module.exports = function profileImageUrlUpload () {
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
+      if (!isAllowedUrl(url)) {
+        res.status(400).json({ error: 'URL is not allowed' })
+        return
+      }
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         const imageRequest = request
