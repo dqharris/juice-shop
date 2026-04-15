@@ -25,24 +25,15 @@ module.exports = function getUserProfile () {
       if (loggedInUser) {
         UserModel.findByPk(loggedInUser.data.id).then((user: UserModel | null) => {
           let template = buf.toString()
-          let username = user?.username
+          let username = user?.username ?? ''
           if (username?.match(/#{(.*)}/) !== null && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
             req.app.locals.abused_ssti_bug = true
-            const code = username?.substring(2, username.length - 1)
-            try {
-              if (!code) {
-                throw new Error('Username is null')
-              }
-              username = eval(code) // eslint-disable-line no-eval
-            } catch (err) {
-              username = '\\' + username
-            }
-          } else {
-            username = '\\' + username
           }
+          // Always HTML-encode the username before embedding it in the template
+          const safeUsername = entities.encode(username)
           const theme = themes[config.get<string>('application.theme')]
-          if (username) {
-            template = template.replace(/_username_/g, username)
+          if (safeUsername) {
+            template = template.replace(/_username_/g, safeUsername)
           }
           template = template.replace(/_emailHash_/g, security.hash(user?.email))
           template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
@@ -56,7 +47,7 @@ module.exports = function getUserProfile () {
           const fn = pug.compile(template)
           const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval' https://code.getmdl.io http://ajax.googleapis.com`
           // @ts-expect-error FIXME type issue with string vs. undefined for username
-          challengeUtils.solveIf(challenges.usernameXssChallenge, () => { return user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>') })
+          challengeUtils.solveIf(challenges.usernameXssChallenge, () => { return user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(safeUsername, '<script>alert(`xss`)</script>') })
 
           res.set({
             'Content-Security-Policy': CSP

@@ -13,10 +13,12 @@ const security = require('../lib/insecurity')
 
 module.exports = function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+    const rawFile = decodeURIComponent(params.file)
+    const ftpDir = path.resolve('ftp')
+    const absolutePath = path.resolve(ftpDir, rawFile)
 
-    if (!file.includes('/')) {
-      verify(file, res, next)
+    if (absolutePath.startsWith(ftpDir + path.sep) || absolutePath === ftpDir) {
+      verify(rawFile, res, next)
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
@@ -30,7 +32,14 @@ module.exports = function servePublicFiles () {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      const ftpDir = path.resolve('ftp')
+      const resolvedFile = path.resolve(ftpDir, file)
+      if (!resolvedFile.startsWith(ftpDir + path.sep) && resolvedFile !== ftpDir) {
+        res.status(403)
+        next(new Error('Invalid file path'))
+        return
+      }
+      res.sendFile(resolvedFile)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
