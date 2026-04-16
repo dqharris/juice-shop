@@ -12,10 +12,30 @@ import * as utils from '../lib/utils'
 const security = require('../lib/insecurity')
 const request = require('request')
 
+function isAllowedUrl (url: string): boolean {
+  const ALLOWED_PROTOCOLS = ['https:', 'http:']
+  const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '169.254.170.2', 'metadata.google.internal', '[::1]']
+  const PRIVATE_IP_RANGES = [/^127\./, /^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./, /^169\.254\./, /^0\./]
+  try {
+    const parsedUrl = new URL(url)
+    if (!ALLOWED_PROTOCOLS.includes(parsedUrl.protocol)) return false
+    const hostname = parsedUrl.hostname.toLowerCase()
+    if (BLOCKED_HOSTS.includes(hostname)) return false
+    if (PRIVATE_IP_RANGES.some((re) => re.test(hostname))) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 module.exports = function profileImageUrlUpload () {
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
+      if (!isAllowedUrl(url)) {
+        res.status(400).json({ error: 'Invalid or blocked image URL.' })
+        return
+      }
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
