@@ -9,12 +9,14 @@ import { type Request, type Response, type NextFunction } from 'express'
 module.exports = function serveLogFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
+    const logsDir = path.resolve('logs')
+    const resolved = path.resolve(logsDir, file)
 
-    if (!file.includes('/')) {
-      res.sendFile(path.resolve('logs/', file))
+    if (resolved.startsWith(logsDir + path.sep)) {
+      res.sendFile(resolved)
     } else {
       res.status(403)
-      next(new Error('File names cannot contain forward slashes!'))
+      next(new Error('Invalid file path requested!'))
     }
   }
 }
