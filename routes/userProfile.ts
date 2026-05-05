@@ -42,7 +42,7 @@ module.exports = function getUserProfile () {
           }
           const theme = themes[config.get<string>('application.theme')]
           if (username) {
-            template = template.replace(/_username_/g, username)
+            template = template.replace(/_username_/g, entities.encode(username))
           }
           template = template.replace(/_emailHash_/g, security.hash(user?.email))
           template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
