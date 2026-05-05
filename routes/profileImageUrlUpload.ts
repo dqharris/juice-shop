@@ -12,11 +12,49 @@ import * as utils from '../lib/utils'
 const security = require('../lib/insecurity')
 const request = require('request')
 
+// SSRF protection: hostname patterns that must never be fetched
+const BLOCKED_HOST_PATTERNS: RegExp[] = [
+  /^localhost$/i,
+  /^127\./,                      // 127.0.0.0/8 loopback
+  /^10\./,                       // 10.0.0.0/8 RFC-1918
+  /^192\.168\./,                 // 192.168.0.0/16 RFC-1918
+  /^172\.(1[6-9]|2\d|3[01])\./,  // 172.16.0.0/12 RFC-1918
+  /^169\.254\./,                 // 169.254.0.0/16 link-local / cloud metadata
+  /^::1$/,                       // IPv6 loopback
+  /^0\.0\.0\.0$/
+]
+
+function isSafeUrl (rawUrl: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return false
+  }
+  const hostname = parsed.hostname.toLowerCase()
+  for (const pattern of BLOCKED_HOST_PATTERNS) {
+    if (pattern.test(hostname)) {
+      return false
+    }
+  }
+  return true
+}
+
 module.exports = function profileImageUrlUpload () {
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
+
+      // SSRF guard: reject URLs targeting internal/private infrastructure
+      if (!isSafeUrl(url)) {
+        res.status(400).json({ error: 'Invalid image URL.' })
+        return
+      }
+
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         const imageRequest = request
