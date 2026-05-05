@@ -28,15 +28,8 @@ module.exports = function getUserProfile () {
           let username = user?.username
           if (username?.match(/#{(.*)}/) !== null && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
             req.app.locals.abused_ssti_bug = true
-            const code = username?.substring(2, username.length - 1)
-            try {
-              if (!code) {
-                throw new Error('Username is null')
-              }
-              username = eval(code) // eslint-disable-line no-eval
-            } catch (err) {
-              username = '\\' + username
-            }
+            // Detected #{...} pattern for challenge tracking; content is never evaluated.
+            username = '\\' + username
           } else {
             username = '\\' + username
           }
