@@ -27,10 +27,19 @@ module.exports = function servePublicFiles () {
     if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
       file = security.cutOffPoisonNullByte(file)
 
+      const basePath = path.resolve('ftp') + path.sep
+      const resolvedFilePath = path.resolve('ftp/', file)
+
+      if (!resolvedFilePath.startsWith(basePath)) {
+        res.status(403)
+        next(new Error('Directory traversal is not permitted!'))
+        return
+      }
+
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      res.sendFile(resolvedFilePath)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
