@@ -24,17 +24,35 @@ module.exports = function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
-
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
-
-      res.sendFile(path.resolve('ftp/', file))
-    } else {
+    if (!file) {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
+      return
     }
+
+    // Sanitize BEFORE validation - strip null bytes first
+    const sanitizedFile = security.cutOffPoisonNullByte(file)
+
+    // Validate the SANITIZED filename against the allowlist
+    if (!(endsWithAllowlistedFileType(sanitizedFile) || sanitizedFile === 'incident-support.kdbx')) {
+      res.status(403)
+      next(new Error('Only .md and .pdf files are allowed!'))
+      return
+    }
+
+    // Path confinement: ensure resolved path stays within ftp/ directory
+    const ftpRoot = path.resolve('ftp')
+    const resolvedPath = path.resolve(ftpRoot, sanitizedFile)
+    if (!resolvedPath.startsWith(ftpRoot + path.sep) && resolvedPath !== ftpRoot) {
+      res.status(403)
+      next(new Error('Directory traversal is not permitted!'))
+      return
+    }
+
+    challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return sanitizedFile.toLowerCase() === 'acquisitions.md' })
+    verifySuccessfulPoisonNullByteExploit(sanitizedFile)
+
+    res.sendFile(resolvedPath)
   }
 
   function verifySuccessfulPoisonNullByteExploit (file: string) {
