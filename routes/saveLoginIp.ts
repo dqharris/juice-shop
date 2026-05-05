@@ -19,9 +19,8 @@ module.exports = function saveLoginIp () {
       let lastLoginIp = req.headers['true-client-ip']
       if (utils.isChallengeEnabled(challenges.httpHeaderXssChallenge)) {
         challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return lastLoginIp === '<iframe src="javascript:alert(`xss`)">' })
-      } else {
-        lastLoginIp = security.sanitizeSecure(lastLoginIp)
       }
+      lastLoginIp = security.sanitizeSecure(lastLoginIp as string)
       if (lastLoginIp === undefined) {
         // @ts-expect-error FIXME types not matching
         lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress)
