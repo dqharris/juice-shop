@@ -5,16 +5,18 @@
 
 import path = require('path')
 import { type Request, type Response, type NextFunction } from 'express'
+const security = require('../lib/insecurity')
 
 module.exports = function serveKeyFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (!file.includes('/')) {
-      res.sendFile(path.resolve('encryptionkeys/', file))
-    } else {
+    const safePath = security.safeFilePath('encryptionkeys/', file)
+    if (!safePath) {
       res.status(403)
-      next(new Error('File names cannot contain forward slashes!'))
+      next(new Error('Invalid file path!'))
+      return
     }
+    res.sendFile(safePath)
   }
 }
