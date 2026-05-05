@@ -13,7 +13,7 @@ const security = require('../lib/insecurity')
 
 module.exports = function productReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
-    const id = req.body.id
+    const id = String(req.body.id) // Sanitize: coerce to primitive string to prevent NoSQL operator injection
     const user = security.authenticatedUsers.from(req)
     db.reviewsCollection.findOne({ _id: id }).then((review: Review) => {
       if (!review) {

@@ -12,6 +12,21 @@ import * as utils from '../lib/utils'
 const security = require('../lib/insecurity')
 const request = require('request')
 
+function isBlockedUrl (url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return true
+    const hostname = parsed.hostname.toLowerCase()
+    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '169.254.169.254', '[::1]']
+    if (blockedHosts.includes(hostname)) return true
+    if (hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.startsWith('172.16.') || hostname.startsWith('172.17.') || hostname.startsWith('172.18.') || hostname.startsWith('172.19.') || hostname.startsWith('172.2') || hostname.startsWith('172.30.') || hostname.startsWith('172.31.')) return true
+    if (hostname.endsWith('.internal') || hostname.endsWith('.local')) return true
+    return false
+  } catch {
+    return true
+  }
+}
+
 module.exports = function profileImageUrlUpload () {
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -19,6 +34,10 @@ module.exports = function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
+        if (isBlockedUrl(url)) {
+          res.status(400).json({ error: 'Blocked: URL targets a restricted address' })
+          return
+        }
         const imageRequest = request
           .get(url)
           .on('error', function (err: unknown) {

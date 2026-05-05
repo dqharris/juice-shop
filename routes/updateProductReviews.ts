@@ -14,8 +14,14 @@ const security = require('../lib/insecurity')
 module.exports = function productReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = security.authenticatedUsers.from(req) // vuln-code-snippet vuln-line forgedReviewChallenge
+    const rawId = req.body.id
+    if (typeof rawId !== 'string' && typeof rawId !== 'number') {
+      res.status(400).json({ error: 'Invalid review ID' })
+      return
+    }
+    const id = String(rawId)
     db.reviewsCollection.update( // vuln-code-snippet neutral-line forgedReviewChallenge
-      { _id: req.body.id }, // vuln-code-snippet vuln-line noSqlReviewsChallenge forgedReviewChallenge
+      { _id: id }, // vuln-code-snippet vuln-line noSqlReviewsChallenge forgedReviewChallenge
       { $set: { message: req.body.message } },
       { multi: true } // vuln-code-snippet vuln-line noSqlReviewsChallenge
     ).then(
